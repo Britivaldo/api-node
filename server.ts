@@ -1,5 +1,10 @@
+import { fastifySwagger } from '@fastify/swagger'
 import fastify from 'fastify'
-import crypto from 'node:crypto'
+import { validatorCompiler, serializerCompiler, type ZodTypeProvider, jsonSchemaTransform } from 'fastify-type-provider-zod'
+import { createCourseRoute } from './src/routes/create-course'
+import { getCoursesRoute } from './src/routes/get-courses'
+import { getCourseByIdRoute } from './src/routes/get-course-by-id'
+import scalarAPIReference from '@scalar/fastify-api-reference'
 
 const server = fastify({
   logger: {
@@ -11,56 +16,30 @@ const server = fastify({
       }
     }
   }
-})
+}).withTypeProvider<ZodTypeProvider>()
 
-const courses = [
-  { id: '1', title: 'Curso de NodeJS' },
-  { id: '2', title: 'Curso de JavaScript' },
-  { id: '3', title: 'Curso de ReactJS' },
-]
-
-server.get('/courses', () => {
-  return { courses }
-})
-
-server.get('/courses/:id', (request, reply) => {
-  type Params = {
-    id: string
-  }
-
-  const params = request.params as Params
-  const courseId = params.id
-
-  const course = courses.find(course => course.id === courseId)
-
-  if(course) {
-    return reply.status(200).send(course)
-  }
-
-  return reply.status(404).send({ error: 'Course not found' })
-})
-
-server.post('/courses', (request, reply) => {
-  type Body = {
-    title: string
-  }
-
-  const coursesId = crypto.randomUUID()
-  
-  const body = request.body as Body
-  const courseTitle = body.title
-
-  if(!courseTitle) {
-    return reply.status(400).send({ message: 'Title is required' })
-  }
-
-  courses.push({
-    id: coursesId,
-    title: courseTitle,
+if (process.env.NODE_ENV === 'development') {
+  server.register(fastifySwagger, {
+    openapi: {
+      info: {
+        title: 'Desfio Node.js',
+        version: '1.0.0',
+      },
+    },
+    transform: jsonSchemaTransform
   })
 
-  return reply.status(201).send({ coursesId })
-})
+  server.register(scalarAPIReference, {
+    routePrefix: '/docs',
+  })
+}
+
+server.setValidatorCompiler(validatorCompiler)
+server.setSerializerCompiler(serializerCompiler)
+
+server.register(createCourseRoute)
+server.register(getCoursesRoute)
+server.register(getCourseByIdRoute)
 
 server.listen({ port: 3333 }).then(() => {
   console.log('Server is running on port 3333')
